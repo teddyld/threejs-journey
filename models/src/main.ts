@@ -19,10 +19,13 @@ gui
   .max(2)
   .step(1)
   .onFinishChange(() => {
-    if (mixer && action) {
-      action.stop();
-      action = mixer.clipAction(animations[debugObject.animation]);
-      action.play();
+    if (mixer && oldAction) {
+      const newAction = mixer.clipAction(animations[debugObject.animation]);
+      newAction.reset();
+      newAction.play();
+      newAction.crossFadeFrom(oldAction, 1);
+
+      oldAction = newAction;
     }
   });
 
@@ -43,13 +46,13 @@ gltfLoader.setDRACOLoader(dracoLoader);
 
 let mixer: THREE.AnimationMixer | null = null;
 let animations: THREE.AnimationClip[] = [];
-let action: THREE.AnimationAction | null = null;
+let oldAction: THREE.AnimationAction | null = null;
 gltfLoader.load("/models/Fox/glTF/Fox.gltf", (gltf) => {
   // Animations
   mixer = new THREE.AnimationMixer(gltf.scene);
   animations = gltf.animations;
-  action = mixer.clipAction(gltf.animations[debugObject.animation]);
-  action.play();
+  oldAction = mixer.clipAction(gltf.animations[debugObject.animation]);
+  oldAction.play();
 
   gltf.scene.scale.set(0.025, 0.025, 0.025);
   scene.add(gltf.scene);
