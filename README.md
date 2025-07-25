@@ -1,3 +1,3 @@
-# Threejs Journey
+# Three.js Journey
 
-> A collection of threejs experiences from the excellent threejs journey course by Bruno Simon
+> A collection of three.js experiences from the excellent "three.js journey" course by Bruno Simon
