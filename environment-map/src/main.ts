@@ -29,8 +29,8 @@ const scene = new THREE.Scene();
 scene.environmentIntensity = 1;
 scene.backgroundBlurriness = 0;
 scene.backgroundIntensity = 1;
-scene.backgroundRotation.y = 1;
-scene.environmentRotation.y = 1;
+scene.backgroundRotation.y = 0;
+scene.environmentRotation.y = 0;
 
 gui.add(scene, "environmentIntensity").min(0).max(10).step(0.001);
 gui.add(scene, "backgroundBlurriness").min(0).max(1).step(0.001);
@@ -49,16 +49,16 @@ gui
   .name("environmentRotationY");
 
 // LDR cube texture
-// const environmentMap = cubeTextureLoader.load([
-//   "/environmentMaps/0/px.png",
-//   "/environmentMaps/0/nx.png",
-//   "/environmentMaps/0/py.png",
-//   "/environmentMaps/0/ny.png",
-//   "/environmentMaps/0/pz.png",
-//   "/environmentMaps/0/nz.png",
-// ]);
-// scene.environment = environmentMap;
-// scene.background = environmentMap;
+const environmentMap = cubeTextureLoader.load([
+  "/environmentMaps/0/px.png",
+  "/environmentMaps/0/nx.png",
+  "/environmentMaps/0/py.png",
+  "/environmentMaps/0/ny.png",
+  "/environmentMaps/0/pz.png",
+  "/environmentMaps/0/nz.png",
+]);
+scene.environment = environmentMap;
+scene.background = environmentMap;
 
 // HDR (RGBE) equirectangular
 // rgbeLoader.load("/environmentMaps/blender-lights-2k.hdr", (environmentMap) => {
@@ -88,12 +88,12 @@ gui
 // });
 
 /* Real-time environment map */
-const environmentMap = textureLoader.load(
-  "/environmentMaps/blockadesLabsSkybox/interior_views_cozy_wood_cabin_with_cauldron_and_p.jpg"
-);
-environmentMap.mapping = THREE.EquirectangularReflectionMapping;
-environmentMap.colorSpace = THREE.SRGBColorSpace;
-scene.background = environmentMap;
+// const environmentMap = textureLoader.load(
+//   "/environmentMaps/blockadesLabsSkybox/interior_views_cozy_wood_cabin_with_cauldron_and_p.jpg"
+// );
+// environmentMap.mapping = THREE.EquirectangularReflectionMapping;
+// environmentMap.colorSpace = THREE.SRGBColorSpace;
+// scene.background = environmentMap;
 
 // Holy donut
 const holyDonut = new THREE.Mesh(
@@ -102,13 +102,13 @@ const holyDonut = new THREE.Mesh(
 );
 holyDonut.position.y = 3.5;
 holyDonut.layers.enable(1);
-scene.add(holyDonut);
+// scene.add(holyDonut);
 
 // Cube render target
 const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
   type: THREE.HalfFloatType,
 });
-scene.environment = cubeRenderTarget.texture;
+// scene.environment = cubeRenderTarget.texture;
 
 // Cube camera
 const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRenderTarget);
@@ -132,8 +132,60 @@ scene.add(torusKnot);
 /* Models */
 gltfLoader.load("/models/FlightHelmet/glTF/FlightHelmet.gltf", (gltf) => {
   gltf.scene.scale.set(10, 10, 10);
+  for (const object of gltf.scene.children) {
+    object.receiveShadow = true;
+    object.castShadow = true;
+  }
   scene.add(gltf.scene);
 });
+
+/* Lights */
+const directionalLight = new THREE.DirectionalLight("white", 6);
+directionalLight.position.set(3, 7, 6);
+directionalLight.target.position.set(0, 4, 0);
+directionalLight.target.updateWorldMatrix(true, true);
+scene.add(directionalLight);
+
+gui
+  .add(directionalLight, "intensity")
+  .min(0)
+  .max(10)
+  .step(0.001)
+  .name("lightIntensity");
+gui
+  .add(directionalLight.position, "x")
+  .min(-10)
+  .max(10)
+  .step(0.001)
+  .name("lightX");
+gui
+  .add(directionalLight.position, "y")
+  .min(-10)
+  .max(10)
+  .step(0.001)
+  .name("lightY");
+gui
+  .add(directionalLight.position, "z")
+  .min(-10)
+  .max(10)
+  .step(0.001)
+  .name("lightZ");
+
+/* Shadows */
+directionalLight.castShadow = true;
+directionalLight.shadow.camera.far = 15;
+directionalLight.shadow.mapSize.set(512, 512);
+gui.add(directionalLight, "castShadow");
+
+const directionalLightHelper = new THREE.CameraHelper(
+  directionalLight.shadow.camera
+);
+directionalLightHelper.visible = false;
+scene.add(directionalLightHelper);
+
+gui
+  .add(directionalLightHelper, "visible")
+  .name("directionalLightCameraHelperVisible");
 
 /**
  * Sizes
@@ -181,9 +233,27 @@ controls.enableDamping = true;
  */
 const renderer = new THREE.WebGLRenderer({
   canvas: canvas,
+  antialias: true,
 });
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+// Shadows
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+// Tone mapping
+renderer.toneMapping = THREE.ReinhardToneMapping;
+renderer.toneMappingExposure = 3;
+
+gui.add(renderer, "toneMapping", {
+  No: THREE.NoToneMapping,
+  Linear: THREE.LinearToneMapping,
+  Reinhard: THREE.ReinhardToneMapping,
+  Cineon: THREE.CineonToneMapping,
+  AcesFilmic: THREE.ACESFilmicToneMapping,
+});
+gui.add(renderer, "toneMappingExposure").min(0).max(10).step(0.001);
 
 /**
  * Animate
@@ -196,7 +266,6 @@ const tick = () => {
   // Update objects
   if (holyDonut) {
     holyDonut.rotation.x = Math.sin(elapsedTime);
-
     cubeCamera.update(renderer, scene);
   }
 
