@@ -11,9 +11,9 @@ void main()
 {
 
     vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-    modelPosition.y += sin(modelPosition.x * uFrequency.x - uTime) * 0.1;
-    modelPosition.y += sin(modelPosition.z * uFrequency.y - uTime) * 0.1;
-    vElevation = modelPosition.y;
+    modelPosition.z += sin(modelPosition.x * uFrequency.x - uTime) * 0.1;
+    modelPosition.z += sin(modelPosition.z * uFrequency.y - uTime) * 0.1;
+    vElevation = modelPosition.z;
     
     // modelPosition.z = aRandom * 0.1;
 

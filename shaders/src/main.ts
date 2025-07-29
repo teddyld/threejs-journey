@@ -2,14 +2,18 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import GUI from "lil-gui";
 
-import textureVertexShader from "./shaders/textureVertex.glsl";
-import textureFragmentShader from "./shaders/textureFragment.glsl";
-import gradientVertexShader from "./shaders/gradientVertex.glsl";
-import gradientFragmentShader from "./shaders/gradientFragment.glsl";
-import noiseVertexShader from "./shaders/noiseVertex.glsl";
-import noiseFragmentShader from "./shaders/noiseFragment.glsl";
-import waterVertexShader from "./shaders/waterVertex.glsl";
-import waterFragmentShader from "./shaders/waterFragment.glsl";
+import textureVertexShader from "./shaders/texture/textureVertex.glsl";
+import textureFragmentShader from "./shaders/texture/textureFragment.glsl";
+import gradientVertexShader from "./shaders/gradient/gradientVertex.glsl";
+import gradientFragmentShader from "./shaders/gradient/gradientFragment.glsl";
+import noiseVertexShader from "./shaders/noise/noiseVertex.glsl";
+import noiseFragmentShader from "./shaders/noise/noiseFragment.glsl";
+import waterVertexShader from "./shaders/water/waterVertex.glsl";
+import waterFragmentShader from "./shaders/water/waterFragment.glsl";
+import smokeVertexShader from "./shaders/smoke/smokeVertex.glsl";
+import smokeFragmentShader from "./shaders/smoke/smokeFragment.glsl";
+import hologramVertexShader from "./shaders/hologram/hologramVertex.glsl";
+import hologramFragmentShader from "./shaders/hologram/hologramFragment.glsl";
 
 /**
  * Base
@@ -25,6 +29,8 @@ const textureFolder = gui.addFolder("Waving Texture");
 const gradientFolder = gui.addFolder("Gradient");
 const noiseFolder = gui.addFolder("Noise");
 const waterFolder = gui.addFolder("Water");
+const smokeFolder = gui.addFolder("Smoke");
+const hologramFolder = gui.addFolder("Hologram");
 
 // Canvas
 const canvas = document.querySelector("canvas.webgl");
@@ -37,16 +43,24 @@ const scene = new THREE.Scene();
 /* Textures */
 const textureLoader = new THREE.TextureLoader();
 const catTexture = textureLoader.load("/textures/cat.jpg");
+const perlinTexture = textureLoader.load("/textures/perlin.png");
+
+perlinTexture.wrapS = THREE.RepeatWrapping;
+perlinTexture.wrapT = THREE.RepeatWrapping;
 
 /**
  * Objects
  */
-const geometry = new THREE.PlaneGeometry(2, 2, 512, 512);
-const material = new THREE.ShaderMaterial();
+const geometry = new THREE.PlaneGeometry(1, 1);
+const material = new THREE.ShaderMaterial({ transparent: true });
+
+const mesh = new THREE.Mesh(geometry as THREE.BufferGeometry, material);
+scene.add(mesh);
 
 let name = "";
 let lastName = "";
 let onTickUpdateShader: (elapsedTime: number) => void = () => {};
+const debugObject: { [key: string]: any } = {};
 
 gui.onOpenClose((changedGUI) => {
   name = changedGUI._title;
@@ -57,6 +71,20 @@ gui.onOpenClose((changedGUI) => {
   }
 
   if (name !== lastName) {
+    // Reset parameters to default
+    mesh.geometry.dispose();
+    mesh.geometry = new THREE.PlaneGeometry(1, 1, 32, 32);
+
+    mesh.material.uniforms = {};
+    mesh.material.side = THREE.FrontSide;
+    mesh.material.depthWrite = true;
+    material.blending = THREE.NormalBlending;
+
+    mesh.rotation.set(0, 0, 0);
+    mesh.scale.set(1, 1, 1);
+
+    onTickUpdateShader = () => {};
+
     switch (name) {
       case textureFolder._title:
         const count = geometry.attributes.position.count;
@@ -88,7 +116,7 @@ gui.onOpenClose((changedGUI) => {
             .min(0)
             .max(20)
             .step(0.01)
-            .name("uFrequencyZ");
+            .name("uFrequencyY");
         }
 
         onTickUpdateShader = (elapsedTime) => {
@@ -104,13 +132,15 @@ gui.onOpenClose((changedGUI) => {
         material.fragmentShader = noiseFragmentShader;
         break;
       case waterFolder._title:
+        mesh.geometry.dispose();
+        mesh.geometry = new THREE.PlaneGeometry(2, 2, 512, 512);
+        mesh.rotation.x = -Math.PI * 0.5;
+
         material.vertexShader = waterVertexShader;
         material.fragmentShader = waterFragmentShader;
 
-        const debugObject = {
-          depthColor: "#3f78d5",
-          surfaceColor: "#a3d2f0",
-        };
+        debugObject.depthColor = "#3f78d5";
+        debugObject.surfaceColor = "#a3d2f0";
 
         material.uniforms = {
           uTime: { value: 0 },
@@ -209,6 +239,113 @@ gui.onOpenClose((changedGUI) => {
           material.uniforms.uTime.value = elapsedTime;
         };
         break;
+      case smokeFolder._title:
+        mesh.geometry.dispose();
+        mesh.geometry = new THREE.PlaneGeometry(1, 1, 16, 64);
+        mesh.scale.set(0.75, 3, 0.75);
+
+        material.vertexShader = smokeVertexShader;
+        material.fragmentShader = smokeFragmentShader;
+
+        debugObject.smokeColor = "#3f78d5";
+
+        material.uniforms = {
+          uTime: { value: 0 },
+          uPerlinTexture: { value: perlinTexture },
+          uSmokeColor: { value: new THREE.Color(debugObject.smokeColor) },
+        };
+
+        material.side = THREE.DoubleSide;
+        mesh.material.depthWrite = false;
+
+        if (!smokeFolder.children.length) {
+          smokeFolder.add(material, "wireframe");
+          smokeFolder.addColor(debugObject, "smokeColor").onChange(() => {
+            material.uniforms.uSmokeColor.value.set(debugObject.smokeColor);
+          });
+        }
+
+        onTickUpdateShader = (elapsedTime) => {
+          material.uniforms.uTime.value = elapsedTime;
+        };
+        break;
+      case hologramFolder._title:
+        mesh.geometry.dispose();
+        mesh.geometry = new THREE.TorusKnotGeometry(0.6, 0.25, 128, 32);
+        material.vertexShader = hologramVertexShader;
+        material.fragmentShader = hologramFragmentShader;
+        material.side = THREE.DoubleSide;
+        material.depthWrite = false;
+        material.blending = THREE.AdditiveBlending;
+
+        debugObject.hologramColor = "#23c55e";
+        debugObject.geometry = "TorusKnot";
+
+        material.uniforms = {
+          uTime: { value: 0 },
+          uFresnelIntensity: { value: 2 },
+          uLowerFalloff: { value: 0.8 },
+          uUpperFalloff: { value: 0 },
+          uHologramColor: { value: new THREE.Color(debugObject.hologramColor) },
+          uHolographicPower: { value: 1.25 },
+          uGlitchStrength: { value: 0.25 },
+        };
+
+        if (!hologramFolder.children.length) {
+          hologramFolder.addColor(debugObject, "hologramColor").onChange(() => {
+            material.uniforms.uHologramColor.value.set(
+              debugObject.hologramColor
+            );
+          });
+          hologramFolder
+            .add(material.uniforms.uLowerFalloff, "value")
+            .min(0)
+            .max(1)
+            .step(0.001)
+            .name("uLowerFalloff");
+          hologramFolder
+            .add(material.uniforms.uUpperFalloff, "value")
+            .min(0)
+            .max(1)
+            .step(0.001)
+            .name("uUpperFalloff");
+          hologramFolder
+            .add(material.uniforms.uFresnelIntensity, "value")
+            .min(0)
+            .max(10)
+            .step(0.001)
+            .name("uFresnelIntensity");
+          hologramFolder
+            .add(material.uniforms.uGlitchStrength, "value")
+            .min(0)
+            .max(1)
+            .step(0.001)
+            .name("uGlitchStrength");
+          hologramFolder
+            .add(debugObject, "geometry")
+            .options({ TorusKnot: 0, Sphere: 1, Cone: 2 })
+            .onChange((value: number) => {
+              mesh.geometry.dispose();
+              if (value === 0)
+                mesh.geometry = new THREE.TorusKnotGeometry(0.6, 0.25, 128, 32);
+              else if (value === 1) mesh.geometry = new THREE.SphereGeometry();
+              else if (value === 2)
+                mesh.geometry = new THREE.ConeGeometry(1, 1);
+            });
+          hologramFolder
+            .add(material.uniforms.uHolographicPower, "value")
+            .min(0)
+            .max(5)
+            .step(0.001)
+            .name("uHolographicPower");
+        }
+
+        onTickUpdateShader = (elapsedTime) => {
+          mesh.rotation.x = elapsedTime * 0.1;
+          mesh.rotation.z = elapsedTime * 0.1;
+          material.uniforms.uTime.value = elapsedTime;
+        };
+        break;
       default:
         console.log(`Select a folder`);
     }
@@ -218,9 +355,8 @@ gui.onOpenClose((changedGUI) => {
   }
 });
 
-const mesh = new THREE.Mesh(geometry, material);
-mesh.rotation.x = -Math.PI * 0.5;
-scene.add(mesh);
+// Default shader opened
+smokeFolder.open();
 
 /**
  * Sizes
