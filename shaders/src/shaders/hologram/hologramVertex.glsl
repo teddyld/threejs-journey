@@ -22,6 +22,6 @@ void main()
     gl_Position = projectionMatrix * viewMatrix * modelPosition;
 
     vPosition = modelPosition.xyz;
-    vec4 modelNormal = modelMatrix * vec4(normal, 0.0); // Ignore translation by setting homogenous coordinate
-    vNormal = modelNormal.xyz;
+    vec3 modelNormal = mat3(transpose(inverse(modelMatrix))) * normal; 
+    vNormal = modelNormal;
 }

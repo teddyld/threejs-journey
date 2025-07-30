@@ -29,8 +29,15 @@ const textureFolder = gui.addFolder("Waving Texture");
 const gradientFolder = gui.addFolder("Gradient");
 const noiseFolder = gui.addFolder("Noise");
 const waterFolder = gui.addFolder("Water");
+
+const waterAmbientFolder = waterFolder.addFolder("Ambient light");
+const waterSpotFolder = waterFolder.addFolder("Spot light");
+const waterDirectionalFolder = waterFolder.addFolder("Directional light");
+const waterPointFolder = waterFolder.addFolder("Point light");
+
 const smokeFolder = gui.addFolder("Smoke");
 const hologramFolder = gui.addFolder("Hologram");
+const fireworkFolder = gui.addFolder("Firework");
 
 // Canvas
 const canvas = document.querySelector("canvas.webgl");
@@ -63,6 +70,10 @@ let onTickUpdateShader: (elapsedTime: number) => void = () => {};
 const debugObject: { [key: string]: any } = {};
 
 gui.onOpenClose((changedGUI) => {
+  if (changedGUI.parent._title !== gui._title) {
+    return;
+  }
+
   name = changedGUI._title;
   for (const folder of gui.folders) {
     if (folder._title !== name) {
@@ -134,20 +145,28 @@ gui.onOpenClose((changedGUI) => {
       case waterFolder._title:
         mesh.geometry.dispose();
         mesh.geometry = new THREE.PlaneGeometry(2, 2, 512, 512);
+        mesh.geometry.deleteAttribute("normal");
+        mesh.geometry.deleteAttribute("uv");
         mesh.rotation.x = -Math.PI * 0.5;
 
         material.vertexShader = waterVertexShader;
         material.fragmentShader = waterFragmentShader;
 
-        debugObject.depthColor = "#3f78d5";
-        debugObject.surfaceColor = "#a3d2f0";
+        debugObject.depthColor = "#ff4000";
+        debugObject.surfaceColor = "#151c37";
+        debugObject.ambientColor = "#ffffff";
+        debugObject.spotLightColor = "#ffffff";
+        debugObject.dirLightColor = "#ffffff";
+        debugObject.pointLightColor = "#ffffff";
+        debugObject.innerCutOff = 12.5;
+        debugObject.outerCutOff = 17.5;
 
         material.uniforms = {
           uTime: { value: 0 },
           uDepthColor: { value: new THREE.Color(debugObject.depthColor) },
           uSurfaceColor: { value: new THREE.Color(debugObject.surfaceColor) },
-          uColorOffset: { value: 0.1 },
-          uColorMultiplier: { value: 2.5 },
+          uColorOffset: { value: 0.925 },
+          uColorMultiplier: { value: 1 },
           uBigWavesElevation: { value: 0.2 },
           uBigWavesFrequency: { value: new THREE.Vector2(4, 1.5) },
           uBigWavesSpeed: { value: 0.75 },
@@ -155,9 +174,49 @@ gui.onOpenClose((changedGUI) => {
           uSmallWavesFrequency: { value: 3 },
           uSmallWavesSpeed: { value: 0.2 },
           uSmallWavesIteration: { value: 3 },
+          uAmbientLight: {
+            value: {
+              color: new THREE.Color(debugObject.ambientColor),
+              intensity: 0,
+            },
+          },
+          uSpotLight: {
+            value: {
+              color: new THREE.Color(debugObject.spotLightColor),
+              position: new THREE.Vector3(0, 0, 0),
+              direction: new THREE.Vector3(0, -1, 0),
+              intensity: 5,
+              shininess: 32,
+              innerCutOff: Math.cos((debugObject.innerCutOff * Math.PI) / 180),
+              outerCutOff: Math.cos((debugObject.outerCutOff * Math.PI) / 180),
+              constant: 1,
+              linear: 0.7,
+              quadratic: 1.8,
+            },
+          },
+          uDirectionalLight: {
+            value: {
+              color: new THREE.Color(debugObject.dirLightColor),
+              direction: new THREE.Vector3(-1, 0.5, 0),
+              intensity: 0,
+              shininess: 30,
+            },
+          },
+          uPointLight: {
+            value: {
+              color: new THREE.Color(debugObject.pointLightColor),
+              position: new THREE.Vector3(0, 0.25, 0),
+              intensity: 5,
+              shininess: 30,
+              constant: 1,
+              linear: 0.7,
+              quadratic: 1.8,
+            },
+          },
         };
 
-        if (!waterFolder.children.length) {
+        if (waterFolder.children.length === 4) {
+          // Water parameters
           waterFolder
             .addColor(debugObject, "depthColor")
             .name("uDepthColor")
@@ -233,9 +292,145 @@ gui.onOpenClose((changedGUI) => {
             .max(5)
             .step(1)
             .name("uSmallWavesIteration");
+          // Ambient Light
+          waterAmbientFolder
+            .addColor(debugObject, "ambientColor")
+            .name("uAmbientLight.color")
+            .onChange(() => {
+              material.uniforms.uAmbientLight.value.color.set(
+                debugObject.ambientColor
+              );
+            });
+          waterAmbientFolder
+            .add(material.uniforms.uAmbientLight.value, "intensity")
+            .min(0)
+            .max(5)
+            .step(0.001)
+            .name("uAmbientLight.intensity");
+          // Spot light
+          waterSpotFolder
+            .addColor(debugObject, "spotLightColor")
+            .name("uSpotLight.color")
+            .onChange(() => {
+              material.uniforms.uSpotLight.value.color.set(
+                debugObject.spotLightColor
+              );
+            });
+          waterSpotFolder
+            .add(material.uniforms.uSpotLight.value, "intensity")
+            .min(0)
+            .max(10)
+            .step(0.001)
+            .name("uSpotLight.intensity");
+          waterSpotFolder
+            .add(material.uniforms.uSpotLight.value, "shininess")
+            .min(1)
+            .max(64)
+            .step(0.001)
+            .name("uSpotLight.shininess");
+          waterSpotFolder
+            .add(debugObject, "innerCutOff")
+            .min(0)
+            .max(45)
+            .step(0.001)
+            .name("uSpotLight.innerCutOff")
+            .onFinishChange(() => {
+              material.uniforms.uSpotLight.value.innerCutOff = Math.cos(
+                (debugObject.innerCutOff * Math.PI) / 180
+              );
+            });
+          waterSpotFolder
+            .add(debugObject, "outerCutOff")
+            .min(0)
+            .max(45)
+            .step(0.001)
+            .name("uSpotLight.outerCutOff")
+            .onFinishChange(() => {
+              material.uniforms.uSpotLight.value.outerCutOff = Math.cos(
+                (debugObject.outerCutOff * Math.PI) / 180
+              );
+            });
+          waterSpotFolder
+            .add(material.uniforms.uSpotLight.value, "constant")
+            .min(0)
+            .max(1)
+            .step(0.0001)
+            .name("uSpotLight.constant");
+          waterSpotFolder
+            .add(material.uniforms.uSpotLight.value, "linear")
+            .min(0)
+            .max(1)
+            .step(0.0001)
+            .name("uSpotLight.linear");
+          waterSpotFolder
+            .add(material.uniforms.uSpotLight.value, "quadratic")
+            .min(0)
+            .max(3)
+            .step(0.0001)
+            .name("uSpotLight.quadratic");
+          // Directional light
+          waterDirectionalFolder
+            .addColor(debugObject, "dirLightColor")
+            .name("uDirectionalLight.color")
+            .onChange(() => {
+              material.uniforms.uDirectionalLight.value.color.set(
+                debugObject.dirLightColor
+              );
+            });
+          waterDirectionalFolder
+            .add(material.uniforms.uDirectionalLight.value, "intensity")
+            .min(0)
+            .max(5)
+            .step(0.001)
+            .name("uDirectionalLight.intensity");
+          waterDirectionalFolder
+            .add(material.uniforms.uDirectionalLight.value, "shininess")
+            .min(1)
+            .max(64)
+            .step(0.001)
+            .name("uDirectionalLight.shininess");
+          // Point light
+          waterPointFolder
+            .addColor(debugObject, "pointLightColor")
+            .name("uPointLight.color")
+            .onChange(() => {
+              material.uniforms.uPointLight.value.color.set(
+                debugObject.pointLightColor
+              );
+            });
+          waterPointFolder
+            .add(material.uniforms.uPointLight.value, "intensity")
+            .min(0)
+            .max(10)
+            .step(0.001)
+            .name("uPointLight.intensity");
+
+          waterPointFolder
+            .add(material.uniforms.uPointLight.value, "constant")
+            .min(0)
+            .max(1)
+            .step(0.0001)
+            .name("uPointLight.constant");
+          waterPointFolder
+            .add(material.uniforms.uPointLight.value, "linear")
+            .min(0)
+            .max(5)
+            .step(0.0001)
+            .name("uPointLight.linear");
+          waterPointFolder
+            .add(material.uniforms.uPointLight.value, "quadratic")
+            .min(0)
+            .max(5)
+            .step(0.0001)
+            .name("uPointLight.quadratic");
         }
 
         onTickUpdateShader = (elapsedTime) => {
+          material.uniforms.uSpotLight.value.position.set(
+            Math.sin(elapsedTime * 0.7) * 0.4,
+            0.5,
+            Math.cos(elapsedTime * 0.5) * 0.4
+          );
           material.uniforms.uTime.value = elapsedTime;
         };
         break;
@@ -356,7 +551,7 @@ gui.onOpenClose((changedGUI) => {
 });
 
 // Default shader opened
-smokeFolder.open();
+waterFolder.open();
 
 /**
  * Sizes
@@ -407,6 +602,7 @@ const renderer = new THREE.WebGLRenderer({
 });
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 /**
  * Animate
