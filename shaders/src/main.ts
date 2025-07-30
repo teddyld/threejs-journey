@@ -14,6 +14,8 @@ import smokeVertexShader from "./shaders/smoke/smokeVertex.glsl";
 import smokeFragmentShader from "./shaders/smoke/smokeFragment.glsl";
 import hologramVertexShader from "./shaders/hologram/hologramVertex.glsl";
 import hologramFragmentShader from "./shaders/hologram/hologramFragment.glsl";
+import halftoneVertexShader from "./shaders/halftone/halftoneVertex.glsl";
+import halftoneFragmentShader from "./shaders/halftone/halftoneFragment.glsl";
 
 /**
  * Base
@@ -37,7 +39,18 @@ const waterPointFolder = waterFolder.addFolder("Point light");
 
 const smokeFolder = gui.addFolder("Smoke");
 const hologramFolder = gui.addFolder("Hologram");
+const halftoneFolder = gui.addFolder("Halftone");
+
 const fireworkFolder = gui.addFolder("Firework");
+
+/**
+ * Sizes
+ */
+const sizes = {
+  width: window.innerWidth,
+  height: window.innerHeight,
+  pixelRatio: 1,
+};
 
 // Canvas
 const canvas = document.querySelector("canvas.webgl");
@@ -46,6 +59,17 @@ if (!canvas) {
 }
 // Scene
 const scene = new THREE.Scene();
+
+/**
+ * Renderer
+ */
+const renderer = new THREE.WebGLRenderer({
+  canvas: canvas,
+});
+renderer.setSize(sizes.width, sizes.height);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+sizes.pixelRatio = Math.min(window.devicePixelRatio, 2);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 /* Textures */
 const textureLoader = new THREE.TextureLoader();
@@ -541,6 +565,91 @@ gui.onOpenClose((changedGUI) => {
           material.uniforms.uTime.value = elapsedTime;
         };
         break;
+      case halftoneFolder._title:
+        mesh.geometry.dispose();
+        mesh.geometry = new THREE.SphereGeometry();
+
+        material.vertexShader = halftoneVertexShader;
+        material.fragmentShader = halftoneFragmentShader;
+
+        debugObject.color = "#d86e95";
+        debugObject.pointColor = "#dde6f5";
+        debugObject.lightColor = "#e5ffe0";
+
+        material.uniforms = {
+          uHalftone: {
+            value: {
+              color: new THREE.Color(debugObject.color),
+              pointColor: new THREE.Color(debugObject.pointColor),
+              lightColor: new THREE.Color(debugObject.lightColor),
+              pointRepetitions: 100,
+              lightRepetitions: 130,
+              direction: new THREE.Vector3(0, -1, 0),
+              low: -0.8,
+              high: 1.5,
+            },
+          },
+
+          uResolution: {
+            value: new THREE.Vector2(
+              sizes.width * sizes.pixelRatio,
+              sizes.height * sizes.pixelRatio
+            ),
+          },
+        };
+
+        if (!halftoneFolder.children.length) {
+          halftoneFolder
+            .addColor(debugObject, "color")
+            .name("uHalftone.color")
+            .onChange(() => {
+              material.uniforms.uHalftone.value.color.set(debugObject.color);
+            });
+          halftoneFolder
+            .addColor(debugObject, "pointColor")
+            .name("uHalftone.pointColor")
+            .onChange(() => {
+              material.uniforms.uHalftone.value.pointColor.set(
+                debugObject.pointColor
+              );
+            });
+          halftoneFolder
+            .addColor(debugObject, "lightColor")
+            .name("uHalftone.lightColor")
+            .onChange(() => {
+              material.uniforms.uHalftone.value.lightColor.set(
+                debugObject.lightColor
+              );
+            });
+
+          halftoneFolder
+            .add(material.uniforms.uHalftone.value, "pointRepetitions")
+            .min(0)
+            .max(200)
+            .step(1);
+          halftoneFolder
+            .add(material.uniforms.uHalftone.value, "lightRepetitions")
+            .min(0)
+            .max(200)
+            .step(1);
+
+          halftoneFolder
+            .add(material.uniforms.uHalftone.value, "low")
+            .min(-3)
+            .max(3)
+            .step(0.001);
+          halftoneFolder
+            .add(material.uniforms.uHalftone.value, "high")
+            .min(-3)
+            .max(3)
+            .step(0.001);
+        }
+
+        onTickUpdateShader = (elapsedTime) => {
+          mesh.rotation.x = elapsedTime * 0.1;
+          mesh.rotation.z = elapsedTime * 0.1;
+        };
+        break;
       default:
         console.log(`Select a folder`);
     }
@@ -551,28 +660,27 @@ gui.onOpenClose((changedGUI) => {
 });
 
 // Default shader opened
-waterFolder.open();
-
-/**
- * Sizes
- */
-const sizes = {
-  width: window.innerWidth,
-  height: window.innerHeight,
-};
+halftoneFolder.open();
 
 window.addEventListener("resize", () => {
   // Update sizes
   sizes.width = window.innerWidth;
   sizes.height = window.innerHeight;
+  sizes.pixelRatio = Math.min(window.devicePixelRatio, 2);
 
   // Update camera
   camera.aspect = sizes.width / sizes.height;
   camera.updateProjectionMatrix();
 
+  // Update material
+  material.uniforms.uResolution.value.set(
+    sizes.width * sizes.pixelRatio,
+    sizes.height * sizes.pixelRatio
+  );
+
   // Update renderer
   renderer.setSize(sizes.width, sizes.height);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(sizes.pixelRatio);
 });
 
 /**
@@ -593,16 +701,6 @@ scene.add(camera);
 // Controls
 const controls = new OrbitControls(camera, canvas as HTMLElement);
 controls.enableDamping = true;
-
-/**
- * Renderer
- */
-const renderer = new THREE.WebGLRenderer({
-  canvas: canvas,
-});
-renderer.setSize(sizes.width, sizes.height);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 /**
  * Animate
