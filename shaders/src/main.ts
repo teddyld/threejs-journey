@@ -180,7 +180,7 @@ gui.onOpenClose((changedGUI) => {
     }
 
     if (name === textureFolder._title) {
-      const geometry = new THREE.PlaneGeometry(1, 1);
+      const geometry = new THREE.PlaneGeometry(1, 1, 256, 256);
       const material = new THREE.ShaderMaterial({ transparent: true });
       const mesh = new THREE.Mesh(geometry as THREE.BufferGeometry, material);
 
@@ -216,7 +216,7 @@ gui.onOpenClose((changedGUI) => {
           .name("uFrequencyY");
       }
 
-      onTickUpdateShader = (elapsedTime) => {
+      onTickUpdateShader = (elapsedTime: number) => {
         material.uniforms.uTime.value = elapsedTime;
       };
       scene.add(mesh);
