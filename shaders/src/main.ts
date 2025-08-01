@@ -101,7 +101,7 @@ perlinTexture.wrapT = THREE.RepeatWrapping;
 /**
  * Displacement
  */
-const displacement: { [key: string]: any } = {};
+const displacement: Record<string, any> = {};
 
 // 2D canvas
 displacement.canvas = document.createElement("canvas");
@@ -539,8 +539,9 @@ gui.onOpenClose((changedGUI) => {
       material.vertexShader = smokeVertexShader;
       material.fragmentShader = smokeFragmentShader;
 
-      const debugObject: { [key: string]: any } = {};
-      debugObject.smokeColor = "#3f78d5";
+      const debugObject = {
+        smokeColor: "#3f78d5",
+      };
 
       material.uniforms = {
         uTime: { value: 0 },
